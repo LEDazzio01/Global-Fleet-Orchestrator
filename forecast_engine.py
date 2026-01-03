@@ -2,8 +2,8 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import HistGradientBoostingRegressor
-from mapie.regression import MapieRegressor
-from mapie.metrics import coverage_score
+from mapie.regression import SplitConformalRegressor
+from mapie.metrics.regression import regression_coverage_score
 import joblib
 import pickle
 
@@ -58,24 +58,27 @@ def train_and_calibrate():
     # 4. CONFORMAL CALIBRATION (The "Risk Layer")
     # -----------------------------------------------------
     print("Calibrating Conformal Intervals...")
-    # MapieRegressor wraps the base model to add "Safety Bounds"
-    # cv="prefit" means "we already fit the base model, just calibrate using X_calib"
-    conformal_model = MapieRegressor(base_model, cv="prefit")
-    conformal_model.fit(X_calib, y_calib)
+    # SplitConformalRegressor wraps the base model to add "Safety Bounds"
+    # prefit=True means "we already fit the base model, just calibrate using X_calib"
+    # confidence_level=0.95 means 95% confidence (equivalent to alpha=0.05)
+    conformal_model = SplitConformalRegressor(base_model, confidence_level=0.95, prefit=True)
+    conformal_model.conformalize(X_calib, y_calib)
     
     # 5. EVALUATION
     # -----------------------------------------------------
-    # Predict with 95% Confidence (alpha=0.05)
+    # Predict with 95% Confidence (set via confidence_level at init)
     print("Evaluating on Test Set...")
-    y_pred, y_pis = conformal_model.predict(X_test, alpha=0.05)
+    y_pred, y_pis = conformal_model.predict_interval(X_test)
     
-    # y_pis returns shape (n_samples, 2, 1) -> Lower Bound is [:, 0, 0], Upper is [:, 1, 0]
+    # y_pis returns shape (n_samples, 2, n_confidence_levels)
+    # Lower Bound is [:, 0, 0], Upper is [:, 1, 0]
     lower_bounds = y_pis[:, 0, 0]
     upper_bounds = y_pis[:, 1, 0]
     
     # Calculate Coverage: How often did the TRUE temp fall INSIDE our bounds?
     # Target is ~95%. If it's 80%, our model is overconfident (dangerous).
-    coverage = coverage_score(y_test, lower_bounds, upper_bounds)
+    # regression_coverage_score expects (y_true, y_intervals) where y_intervals is (n, 2, 1)
+    coverage = regression_coverage_score(y_test.values, y_pis)[0]
     print(f"\nRESULTS:")
     print(f"Target Confidence: 95%")
     print(f"Actual Coverage:   {coverage:.1%} (Should be close to 95%)")
@@ -92,7 +95,7 @@ def train_and_calibrate():
     # Demonstrate a "Risk Flag" scenario
     # Let's pretend we are in Arizona (Region 0) at 2 PM (Hour 14) with current temp 38C
     demo_features = pd.DataFrame({'region_encoded': [0], 'hour': [14], 'temperature_c': [38]})
-    pred, pis = conformal_model.predict(demo_features, alpha=0.05)
+    pred, pis = conformal_model.predict_interval(demo_features)
     
     print("\nDEMO: Scheduling Decision")
     print(f"Input: Arizona, 2 PM, Current Temp 38C")
