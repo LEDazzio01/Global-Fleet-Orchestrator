@@ -1,0 +1,24 @@
+[flake8]
+max-line-length = 100
+max-complexity = 10
+select = E,F,W,C90
+ignore = 
+    E203,  # whitespace before ':'
+    E501,  # line too long (handled by black)
+    W503,  # line break before binary operator
+    D100,  # Missing docstring in public module
+    D104,  # Missing docstring in public package
+exclude = 
+    .git,
+    __pycache__,
+    .mypy_cache,
+    .pytest_cache,
+    build,
+    dist,
+    *.egg-info,
+    venv,
+    .venv,
+    node_modules,
+per-file-ignores = 
+    __init__.py:F401
+    tests/*:D103,D101

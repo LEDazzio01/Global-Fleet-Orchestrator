@@ -1,0 +1,49 @@
+# Type Checking Workflow
+#
+# Runs mypy for static type analysis.
+# Helps catch type-related bugs before runtime.
+
+name: Type Check
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**/*.py'
+      - 'tests/**/*.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**/*.py'
+      - 'tests/**/*.py'
+
+jobs:
+  mypy:
+    name: MyPy Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install mypy types-requests pandas-stubs types-python-dateutil
+      
+      - name: Run mypy on src/
+        run: |
+          mypy src/ \
+            --ignore-missing-imports \
+            --disallow-untyped-defs \
+            --warn-return-any \
+            --warn-unused-ignores \
+            --show-error-codes \
+            --pretty
